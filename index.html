@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡易版スマブラ風ゲーム</title>
+    <style>
+        canvas {
+            background-color: #eeeeee;
+            display: block;
+            margin: auto;
+        }
+        .controls {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .button {
+            display: inline-block;
+            padding: 15px;
+            margin: 5px;
+            background-color: #ddd;
+            border: 1px solid #999;
+            border-radius: 5px;
+            font-size: 16px;
+            user-select: none;
+            cursor: pointer;
+        }
+        .character-select {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .character-option {
+            margin: 0 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<div class="character-select">
+    <span class="character-option" onclick="selectCharacter(0, 1)">Player 1: キャラA</span>
+    <span class="character-option" onclick="selectCharacter(1, 1)">Player 1: キャラB</span>
+    <span class="character-option" onclick="selectCharacter(2, 1)">Player 1: キャラC</span>
+</div>
+<div class="character-select">
+    <span class="character-option" onclick="selectCharacter(0, 2)">Player 2: キャラA</span>
+    <span class="character-option" onclick="selectCharacter(1, 2)">Player 2: キャラB</span>
+    <span class="character-option" onclick="selectCharacter(2, 2)">Player 2: キャラC</span>
+</div>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div class="controls">
+    <div>
+        <span class="button" id="leftButtonP1">P1: ← 左</span>
+        <span class="button" id="rightButtonP1">P1: 右 →</span>
+        <span class="button" id="jumpButtonP1">P1: ジャンプ</span>
+        <span class="button" id="attackButtonP1">P1: 攻撃</span>
+        <span class="button" id="skillButtonP1">P1: スキル</span>
+    </div>
+    <div>
+        <span class="button" id="leftButtonP2">P2: ← 左</span>
+        <span class="button" id="rightButtonP2">P2: 右 →</span>
+        <span class="button" id="jumpButtonP2">P2: ジャンプ</span>
+        <span class="button" id="attackButtonP2">P2: 攻撃</span>
+        <span class="button" id="skillButtonP2">P2: スキル</span>
+    </div>
+</div>
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const GRAVITY = 0.5;
+    const JUMP_STRENGTH = -10;
+
+    const characters = [
+        {name: "キャラA", color: 'blue', speed: 5, jumpHeight: 10, attack: 5, attackRange: 50, effects: []},
+        {name: "キャラB", color: 'green', speed: 7, jumpHeight: 8, attack: 7, attackRange: 70, effects: []},
+        {name: "キャラC", color: 'red', speed: 3, jumpHeight: 12, attack: 10, attackRange: 30, effects: []}
+    ];
+
+    let player1 = initializePlayer(0);
+    let player2 = initializePlayer(1);
+
+    let keys = {};
+    let p1Controls = { left: false, right: false, jump: false, attack: false, skill: false };
+    let p2Controls = { left: false, right: false, jump: false, attack: false, skill: false };
+
+    document.getElementById('leftButtonP1').addEventListener('touchstart', () => p1Controls.left = true);
+    document.getElementById('leftButtonP1').addEventListener('touchend', () => p1Controls.left = false);
+    document.getElementById('rightButtonP1').addEventListener('touchstart', () => p1Controls.right = true);
+    document.getElementById('rightButtonP1').addEventListener('touchend', () => p1Controls.right = false);
+    document.getElementById('jumpButtonP1').addEventListener('touchstart', () => p1Controls.jump = true);
+    document.getElementById('jumpButtonP1').addEventListener('touchend', () => p1Controls.jump = false);
+    document.getElementById('attackButtonP1').addEventListener('touchstart', () => p1Controls.attack = true);
+    document.getElementById('attackButtonP1').addEventListener('touchend', () => p1Controls.attack = false);
+    document.getElementById('skillButtonP1').addEventListener('touchstart', () => p1Controls.skill = true);
+    document.getElementById('skillButtonP1').addEventListener('touchend', () => p1Controls.skill = false);
+
+    document.getElementById('leftButtonP2').addEventListener('touchstart', () => p2Controls.left = true);
+    document.getElementById('leftButtonP2').addEventListener('touchend', () => p2Controls.left = false);
+    document.getElementById('rightButtonP2').addEventListener('touchstart', () => p2Controls.right = true);
+    document.getElementById('rightButtonP2').addEventListener('touchend', () => p2Controls.right = false);
+    document.getElementById('jumpButtonP2').addEventListener('touchstart', () => p2Controls.jump = true);
+    document.getElementById('jumpButtonP2').addEventListener('touchend', () => p2Controls.jump = false);
+    document.getElementById('attackButtonP2').addEventListener('touchstart', () => p2Controls.attack = true);
+    document.getElementById('attackButtonP2').addEventListener('touchend', () => p2Controls.attack = false);
+    document.getElementById('skillButtonP2').addEventListener('touchstart', () => p2Controls.skill = true);
+    document.getElementById('skillButtonP2').addEventListener('touchend', () => p2Controls.skill = false);
+
+    function initializePlayer(characterIndex) {
+        return {
+            x: 100 + characterIndex * 500,
+            y: 500,
+            width: 50,
+            height: 50,
+            velocityY: 0,
+            onGround: false,
+            speed: characters[characterIndex].speed,
+            jumpHeight: characters[characterIndex].jumpHeight,
+            attack: characters[characterIndex].attack,
+            attackRange: characters[characterIndex].attackRange,
+            hp: 100,
+            color: characters[characterIndex].color,
+            effects: []
+        };
+    }
+
+    function selectCharacter(index, playerNumber) {
+        if (playerNumber === 1) {
+            player1 = initializePlayer(index);
+        } else if (playerNumber === 2) {
+            player2 = initializePlayer(index);
+        }
+    }
+
+    function applyEffects(player) {
+        player.effects.forEach(effect => {
+            if (effect.type === 'poison') {
+                player.hp -= effect.power; // 毒による継続ダメージ
+                effect.duration--;
+            } else if (effect.type === 'speed') {
+                player.speed += effect.power; // 俊敏性強化
+                effect.duration--;
+            } else if (effect.type === 'attack') {
+                player.attack += effect.power; // 攻撃力強化
+                effect.duration--;
+            }
+        });
+        // 効果が切れたら削除
+        player.effects = player.effects.filter(effect => effect.duration > 0);
+    }
+
+    function update() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        handlePlayerInput(player1, p1Controls);
+        handlePlayerInput(player2, p2Controls);
+        applyEffects(player1);
+        applyEffects(player2);
+
+        drawPlayer(player1);
+        drawPlayer(player2);
+
+        requestAnimationFrame(update);
+    }
+
+    function handlePlayerInput(player, controls) {
+        if (controls.left) player.x -= player.speed;
+        if (controls.right) player.x += player.speed;
+        if (controls.jump && player.onGround) {
+            player.velocityY = JUMP_STRENGTH;
+            player.onGround = false;
+        }
+        if (controls.attack) handleAttack(player);
+        if (controls.skill) handleSkill(player);
+
+        player.y += player.velocityY;
+        player.velocityY += GRAVITY;
+        if (player.y >= 500) {
+            player.y = 500;
+            player.velocityY = 0;
+            player.onGround = true;
+        }
+    }
+
+    function handleAttack(player) {
+        let opponent = player === player1 ? player2 : player1;
+        if (Math.abs(player.x - opponent.x) < player.attackRange) {
+            opponent.hp -= player.attack;
+            // 追加: エフェクトを付与
+            if (Math.random() < 0.3) { // 30%の確率で毒効果
+                opponent.effects.push({ type: 'poison', power: 1, duration: 100 });
+            }
+        }
+    }
+
+    function handleSkill(player) {
+        player.effects.push({ type: 'speed', power: 3, duration: 200 }); // 速度強化
+        player.effects.push({ type: 'attack', power: 2, duration: 200 }); // 攻撃力強化
+    }
+
+    function drawPlayer(player) {
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.fillStyle = 'black';
+        ctx.fillText(`HP: ${player.hp}`, player.x, player.y - 10);
+    }
+
+    update();
+</script>
+</body>
+</html>
